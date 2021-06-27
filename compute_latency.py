@@ -137,7 +137,6 @@ def get_ingestion_duration(df):
 
     d = {"traceid": traceid_list, "duration_without_backoff": duration_without_backoff_list, "duration": duration_list,
          "retries": retries}
-    print("continue_count", continue_count)
     return pd.DataFrame(data=d)
 
 
