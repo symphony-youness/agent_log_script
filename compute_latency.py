@@ -8,7 +8,7 @@ from collections import defaultdict
 from pathlib import Path
 
 import pandas as pd
-
+pd.set_option('chained_assignment', None)
 
 def argument_handler(argv):
     input_path = ""
@@ -69,6 +69,7 @@ def process_outgoing_requests(line):
 
 
 def process_log_files(log_files):
+    print("Reading log files ...")
     OUTGOING_REQUESTS = "[com.symphony.agent.filters.InternalRequestLogFilter]"
     data = []
     for log_file in log_files:
@@ -80,6 +81,7 @@ def process_log_files(log_files):
                         row = process_outgoing_requests(line)
                         if row is not None:  # To handle the case of mis-shaped logs (url = 200 or 400)
                             data.append(row)
+    print("Finished reading log files")
     return data
 
 
@@ -100,14 +102,14 @@ def get_ingestion_duration(df):
         group = grouped_df.get_group(key)
         group = group.sort_values(by="time")
 
-        msg_srv_grp = group[group.url == "webcontroller/ingestor/v2/MessageService"]
+        msg_srv_grp = group.loc[group.url == "webcontroller/ingestor/v2/MessageService"]
         msg_srv_count = len(msg_srv_grp)
 
-        obj_status_grp = group[group.url == "webcontroller/ingestor/v1/ObjectStatus"]
+        obj_status_grp = group.loc[group.url == "webcontroller/ingestor/v1/ObjectStatus"]
         obj_status_count = len(obj_status_grp)
         obj_status_retry_backoff_time = get_backoff_time(obj_status_count)
 
-        ret_payload_grp = group[group.url == "dataquery/retrieveMessagePayload"]
+        ret_payload_grp = group.loc[group.url == "dataquery/retrieveMessagePayload"]
         ret_payload_count = len(ret_payload_grp)
         ret_payload_retry_backoff_time = get_backoff_time(ret_payload_count)
 
@@ -134,6 +136,7 @@ def get_ingestion_duration(df):
         traceid_list.append(message_service.traceid)
 
     d = {"traceid": traceid_list, "duration_without_backoff": duration_without_backoff_list, "duration": duration_list}
+    print("Finished." "\n")
     return pd.DataFrame(data=d)
 
 
@@ -153,13 +156,14 @@ def get_backoff_time(count):
 
 
 def process_dataframe(df):
+    print("Start processing and computing statistics ...")
     outgoing_df = df.loc[df["type"] == "OUTGOING_REQUEST"]
 
     # take only 2 calls: "webcontroller/ingestor/v2/MessageService" and "webcontroller/ingestor/v1/ObjectStatus"
     reduced_df = outgoing_df[(outgoing_df.url == "webcontroller/ingestor/v2/MessageService")
                              | (outgoing_df.url == "webcontroller/ingestor/v1/ObjectStatus")
                              | (outgoing_df.url == "dataquery/retrieveMessagePayload")]
-    reduced_df.loc[:, "time"] = pd.to_datetime(reduced_df["time"])
+    reduced_df.loc[:, "time"] = pd.to_datetime(reduced_df.loc[:, "time"], infer_datetime_format=True)
 
     # compute ingestion time
     return get_ingestion_duration(reduced_df)
