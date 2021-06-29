@@ -96,10 +96,9 @@ def get_ingestion_duration(df):
     duration_list = []
     duration_without_backoff_list = []
     traceid_list = []
-    retries = []
     for key, item in grouped_df:
         group = grouped_df.get_group(key)
-        group.sort_values(by="time", inplace=True)
+        group = group.sort_values(by="time")
 
         msg_srv_grp = group[group.url == "webcontroller/ingestor/v2/MessageService"]
         msg_srv_count = len(msg_srv_grp)
@@ -133,10 +132,8 @@ def get_ingestion_duration(df):
         duration_list.append(ingestion_duration.total_seconds() * 1000)
         duration_without_backoff_list.append(ingestion_duration_without_backoff.total_seconds() * 1000)
         traceid_list.append(message_service.traceid)
-        retries.append(obj_status_count - 1)
 
-    d = {"traceid": traceid_list, "duration_without_backoff": duration_without_backoff_list, "duration": duration_list,
-         "retries": retries}
+    d = {"traceid": traceid_list, "duration_without_backoff": duration_without_backoff_list, "duration": duration_list}
     return pd.DataFrame(data=d)
 
 
@@ -162,7 +159,7 @@ def process_dataframe(df):
     reduced_df = outgoing_df[(outgoing_df.url == "webcontroller/ingestor/v2/MessageService")
                              | (outgoing_df.url == "webcontroller/ingestor/v1/ObjectStatus")
                              | (outgoing_df.url == "dataquery/retrieveMessagePayload")]
-    reduced_df["time"] = pd.to_datetime(reduced_df["time"])
+    reduced_df.loc[:, "time"] = pd.to_datetime(reduced_df["time"])
 
     # compute ingestion time
     return get_ingestion_duration(reduced_df)
@@ -179,8 +176,7 @@ def main(argv):
 
     duration_df = process_dataframe(df)
 
-    print(duration_df.head().to_string())
-    print(duration_df.describe().to_string())
+    print(duration_df.describe().round(1).to_string())
 
 
 if __name__ == "__main__":
